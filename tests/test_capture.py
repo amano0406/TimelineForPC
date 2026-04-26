@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from timeline_for_pc.cli import main
+
+
+def test_mock_capture_creates_expected_files(tmp_path: Path) -> None:
+    exit_code = main(
+        [
+            "capture",
+            "--mock",
+            "--mock-profile",
+            "baseline",
+            "--output-root",
+            str(tmp_path),
+        ]
+    )
+
+    assert exit_code == 0
+
+    run_dirs = sorted(
+        (path for path in tmp_path.iterdir() if path.is_dir()),
+        key=lambda path: (path.stat().st_mtime_ns, path.name),
+    )
+    assert len(run_dirs) == 1
+    run_dir = run_dirs[0]
+
+    expected_files = {
+        "request.json",
+        "status.json",
+        "result.json",
+        "manifest.json",
+        "snapshot.json",
+        "snapshot_redacted.json",
+        "report.md",
+    }
+    assert expected_files.issubset({path.name for path in run_dir.iterdir()})
+    export_files = sorted((run_dir / "export").iterdir())
+    assert len(export_files) == 1
+    assert export_files[0].name == "202604200000.md"
+
+    snapshot = json.loads((run_dir / "snapshot.json").read_text(encoding="utf-8"))
+    assert snapshot["capture_mode"] == "mock"
+    assert snapshot["os"]["product_name"] == "Windows 10 Pro"
+    redacted_snapshot = json.loads((run_dir / "snapshot_redacted.json").read_text(encoding="utf-8"))
+    assert redacted_snapshot["host"]["name"] == "[redacted-host]"
+    assert redacted_snapshot["applications"][0]["publisher"] is None
+    assert redacted_snapshot["details"]["platform"]["computer_name"] == "[redacted-host]"
+
+    report = (run_dir / "report.md").read_text(encoding="utf-8")
+    assert "11th Gen Intel(R) Core(TM) i7-11700" in report
+    assert "Captured at:" in report
+    assert "## Network / WSL" in report
+    assert "## CPU / Memory / GPU" in report
+    assert "PC name:" in report
+    assert "Memory layout:" in report
+    assert "Running WSL distros:" in report
+    assert "## 差分" not in report
+    assert "## ネットワーク / WSL" not in report
+
+
+def test_second_mock_capture_keeps_same_minimal_output_shape(tmp_path: Path) -> None:
+    assert main(["capture", "--mock", "--mock-profile", "baseline", "--output-root", str(tmp_path)]) == 0
+    assert main(["capture", "--mock", "--mock-profile", "upgraded", "--output-root", str(tmp_path)]) == 0
+
+    run_dirs = sorted(
+        (path for path in tmp_path.iterdir() if path.is_dir()),
+        key=lambda path: (path.stat().st_mtime_ns, path.name),
+    )
+    second_run = run_dirs[-1]
+
+    assert not (second_run / "diff.json").exists()
+
+    report = (second_run / "report.md").read_text(encoding="utf-8")
+    assert "## 差分" not in report
+    assert "Docker Desktop 4.41.0" not in report
+    assert "## Storage" in report
+    assert "Total physical capacity:" in report
+    assert "total /" in report
+
+    result = json.loads((second_run / "result.json").read_text(encoding="utf-8"))
+    assert result["export_markdown_path"].endswith("202605010000.md")
+    assert "diff_path" not in result
+    assert "previous_snapshot_path" not in result
