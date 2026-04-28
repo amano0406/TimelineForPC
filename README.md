@@ -38,14 +38,16 @@ Current snapshot coverage:
 - Windows product name, version, build number, architecture
 - system manufacturer and model
 - BIOS and chassis details
+- Windows install/boot times and hotfix IDs
 - CPU summary
-- memory modules and current recognized speed
+- memory modules, slots, maximum capacity, and current recognized speed
 - GPU names, driver versions, and NVIDIA runtime stats when available
 - display summary
 - physical disks
 - filesystem volumes
 - network adapter summary
 - WSL summary
+- audio devices and hypervisor presence
 - installed apps from standard uninstall registry paths
 
 ## Usage
@@ -93,12 +95,18 @@ Check whether this PC has the required local tools for live collection:
 timeline-for-pc doctor
 ```
 
+Create local persistent settings:
+
+```bash
+timeline-for-pc settings init
+```
+
 ## Output Shape
 
 `report.md` is the main human-readable record inside the run directory.
 
 - a compact main-info summary
-- OS / BIOS / CPU / memory / GPU / display / storage / network / WSL sections
+- OS / BIOS / CPU / memory / GPU / display / storage / network / WSL / audio / virtualization / installed apps sections
 - current machine state only
 
 `export/YYYYMMDDHHMM.md` is the final deliverable for sharing or handing to an LLM.
@@ -115,6 +123,30 @@ Current profiles:
   - removes app publishers from the redacted snapshot
 - `none`
   - keeps the structured redacted snapshot unmodified
+
+## Settings
+
+Persistent local settings live at the product root:
+
+- `settings.example.json` is tracked by Git.
+- `settings.json` is local-only and ignored by Git.
+
+Initialize local settings:
+
+```bash
+timeline-for-pc settings init
+```
+
+`settings init` creates `settings.json` only when it does not already exist. It
+does not overwrite local settings.
+
+Supported settings:
+
+- `output_root`: default run output directory when `--output-root` is omitted
+- `redaction_profile`: default redaction profile when `--redaction-profile` is omitted
+- `mock_profile`: default mock profile when `--mock-profile` is omitted
+
+CLI arguments still take priority over `settings.json`.
 
 ## Development
 

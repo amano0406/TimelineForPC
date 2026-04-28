@@ -157,7 +157,7 @@ def get_mock_snapshot(profile: str) -> Snapshot:
                         }
                     ]
                 },
-                "audio": {"devices": ["NVIDIA High Definition Audio", "USB Audio 2.0"]},
+                "audio": {"devices": ["NVIDIA High Definition Audio", "USB オーディオ 2.0"]},
                 "virtualization": {"hypervisor_present": True},
                 "wsl": {
                     "default_distribution": "Ubuntu",
@@ -340,7 +340,7 @@ def get_mock_snapshot(profile: str) -> Snapshot:
                     "devices": [
                         "NVIDIA High Definition Audio",
                         "USB Audio 2.0",
-                        "High Definition Audio Device",
+                        "High Definition Audio デバイス",
                     ]
                 },
                 "virtualization": {"hypervisor_present": True},

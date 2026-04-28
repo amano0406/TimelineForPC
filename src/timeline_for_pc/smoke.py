@@ -24,13 +24,23 @@ REQUIRED_MARKDOWN_SNIPPETS = (
     "Captured at:",
     "## System",
     "PC name:",
+    "BIOS release date:",
     "## OS",
+    "Hotfixes:",
     "## CPU / Memory / GPU",
+    "CPU details:",
     "Memory layout:",
+    "Memory slots:",
+    "Configuration notes:",
+    "GPU runtime:",
     "## Display",
     "## Storage",
     "Total physical capacity:",
     "## Network / WSL",
+    "## Audio / Virtualization",
+    "Hypervisor present:",
+    "## Installed Apps",
+    "Installed apps count:",
 )
 
 FORBIDDEN_MARKDOWN_SNIPPETS = (

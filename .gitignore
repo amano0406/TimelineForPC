@@ -7,6 +7,9 @@ build/
 dist/
 *.egg-info/
 
+# Local persistent settings. Keep settings.example.json tracked.
+settings.json
+
 # Local smoke-test and run outputs.
 TimelineForPC-runs/
 data/input/

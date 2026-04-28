@@ -4,9 +4,13 @@ import json
 from pathlib import Path
 from typing import Any
 
+from timeline_for_pc import cli as cli_module
 from timeline_for_pc.cli import main
 from timeline_for_pc.doctor import format_doctor_result
 from timeline_for_pc.doctor import run_doctor
+from timeline_for_pc.settings import SettingsInitResult
+from timeline_for_pc.settings import init_settings
+from timeline_for_pc.settings import load_settings
 
 
 def test_mock_capture_creates_expected_files(tmp_path: Path) -> None:
@@ -58,8 +62,22 @@ def test_mock_capture_creates_expected_files(tmp_path: Path) -> None:
     assert "## Network / WSL" in report
     assert "## CPU / Memory / GPU" in report
     assert "PC name:" in report
+    assert "BIOS release date:" in report
+    assert "Hotfixes:" in report
+    assert "CPU details:" in report
     assert "Memory layout:" in report
+    assert "Memory slots: 2 / 4" in report
+    assert "Memory maximum:" in report
+    assert "Configuration notes:" in report
+    assert "GPU runtime:" in report
+    assert "Small system partitions: 2" in report
     assert "Running WSL distros:" in report
+    assert "## Audio / Virtualization" in report
+    assert "USB Audio 2.0" in report
+    assert "USB オーディオ" not in report
+    assert "Hypervisor present: Yes" in report
+    assert "## Installed Apps" in report
+    assert "Installed apps count: 5" in report
     assert "## 差分" not in report
     assert "## ネットワーク / WSL" not in report
 
@@ -78,10 +96,12 @@ def test_second_mock_capture_keeps_same_minimal_output_shape(tmp_path: Path) -> 
 
     report = (second_run / "report.md").read_text(encoding="utf-8")
     assert "## 差分" not in report
-    assert "Docker Desktop 4.41.0" not in report
+    assert "Docker Desktop 4.41.0" in report
     assert "## Storage" in report
     assert "Total physical capacity:" in report
     assert "total /" in report
+    assert "Hotfixes: 3 installed" in report
+    assert "Key installed apps:" in report
 
     result = json.loads((second_run / "result.json").read_text(encoding="utf-8"))
     assert result["export_markdown_path"].endswith("202605010000.md")
@@ -114,6 +134,8 @@ def test_smoke_test_validates_mock_output(tmp_path: Path, capsys: Any) -> None:
     assert report == export_markdown
     assert "## System" in export_markdown
     assert "## Network / WSL" in export_markdown
+    assert "## Audio / Virtualization" in export_markdown
+    assert "## Installed Apps" in export_markdown
     assert "## 差分" not in export_markdown
 
 
@@ -156,3 +178,69 @@ def test_doctor_reports_ng_when_required_tools_are_missing(tmp_path: Path) -> No
     assert lines[0] == "NG"
     assert any("[NG] Python" in line for line in lines)
     assert any("[NG] PowerShell" in line for line in lines)
+
+
+def test_settings_init_creates_settings_json_without_overwriting(tmp_path: Path) -> None:
+    example = tmp_path / "settings.example.json"
+    example.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "output_root": str(tmp_path / "runs"),
+                "redaction_profile": "none",
+                "mock_profile": "upgraded",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    first = init_settings(root=tmp_path)
+    assert first.created
+    assert first.path == tmp_path / "settings.json"
+    assert first.path.read_text(encoding="utf-8") == example.read_text(encoding="utf-8")
+
+    first.path.write_text('{"schema_version": 1, "output_root": "custom"}\n', encoding="utf-8")
+    second = init_settings(root=tmp_path)
+
+    assert not second.created
+    assert second.path.read_text(encoding="utf-8") == '{"schema_version": 1, "output_root": "custom"}\n'
+
+
+def test_load_settings_reads_local_settings_json(tmp_path: Path) -> None:
+    settings_path = tmp_path / "settings.json"
+    settings_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "output_root": str(tmp_path / "custom-output"),
+                "redaction_profile": "none",
+                "mock_profile": "upgraded",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(root=tmp_path)
+
+    assert settings.output_root == tmp_path / "custom-output"
+    assert settings.redaction_profile == "none"
+    assert settings.mock_profile == "upgraded"
+
+
+def test_settings_init_cli_reports_result(tmp_path: Path, capsys: Any, monkeypatch: Any) -> None:
+    def fake_init_settings() -> SettingsInitResult:
+        return SettingsInitResult(path=tmp_path / "settings.json", created=True)
+
+    monkeypatch.setattr(cli_module, "init_settings", fake_init_settings)
+
+    exit_code = main(["settings", "init"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out.splitlines() == [
+        "OK",
+        f"settings_path: {tmp_path / 'settings.json'}",
+        "created: true",
+    ]
