@@ -27,6 +27,10 @@ The default output root is:
 - Windows: `C:\Codex\workspaces\TimelineForPC`
 - WSL: `/mnt/c/Codex/workspaces/TimelineForPC`
 
+This product currently preserves that existing root instead of the shared
+Timeline baseline of `data/output/runs/timeline-for-pc/`. Moving the default
+root would be an output contract change and needs an explicit decision.
+
 ## What It Captures
 
 Current snapshot coverage:
@@ -96,10 +100,26 @@ Current profiles:
 
 ## Development
 
-Run tests:
+Full test execution requires `pytest`. The project declares it in the optional
+`test` extra:
+
+```bash
+python -m pip install -e ".[test]"
+```
+
+Then run tests:
 
 ```bash
 python -m pytest
+```
+
+Some local operator environments may not have `pip` or `pytest` installed. In
+that case, use the deterministic mock capture and bytecode compilation as
+alternate checks until the test dependency is available:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m timeline_for_pc capture --mock --mock-profile baseline --output-root /tmp/timeline-for-pc-smoke
+PYTHONPYCACHEPREFIX=/tmp/timeline-for-pc-pycache python -m compileall -q src tests
 ```
 
 Mock mode is the test baseline and should stay stable.

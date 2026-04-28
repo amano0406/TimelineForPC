@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local smoke-test and run outputs.
+TimelineForPC-runs/
+data/input/
+data/output/
+data/state/
+data/logs/
