@@ -6,6 +6,7 @@ from pathlib import Path
 from timeline_for_pc.redaction import REDACTION_PROFILES
 from timeline_for_pc.runner import default_output_root
 from timeline_for_pc.runner import run_capture
+from timeline_for_pc.smoke import run_smoke_test
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -21,6 +22,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(run_dir)
         return 0
+
+    if args.command == "smoke-test":
+        result = run_smoke_test(
+            output_root=args.output_root,
+            live=args.live,
+            redaction_profile=args.redaction_profile,
+        )
+        print("OK" if result.ok else "NG")
+        print(f"run_dir: {result.run_dir}")
+        if result.export_path is not None:
+            print(f"export: {result.export_path}")
+        for issue in result.issues:
+            print(f"- {issue}")
+        return 0 if result.ok else 1
 
     parser.error("A command is required.")
     return 2
@@ -49,6 +64,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Mock data profile to use when --mock is enabled.",
     )
     capture_parser.add_argument(
+        "--redaction-profile",
+        default="llm_safe",
+        choices=REDACTION_PROFILES,
+        help="How much redaction to apply to handoff-facing artifacts.",
+    )
+
+    smoke_parser = subparsers.add_parser(
+        "smoke-test",
+        help="Run a capture and verify the output contract.",
+    )
+    smoke_parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=default_output_root() / "_smoke",
+        help="Directory that will contain smoke-test run folders.",
+    )
+    smoke_parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Use live Windows collection instead of deterministic mock data.",
+    )
+    smoke_parser.add_argument(
         "--redaction-profile",
         default="llm_safe",
         choices=REDACTION_PROFILES,

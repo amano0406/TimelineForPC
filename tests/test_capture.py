@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from timeline_for_pc.cli import main
 
@@ -84,3 +85,31 @@ def test_second_mock_capture_keeps_same_minimal_output_shape(tmp_path: Path) -> 
     assert result["export_markdown_path"].endswith("202605010000.md")
     assert "diff_path" not in result
     assert "previous_snapshot_path" not in result
+
+
+def test_smoke_test_validates_mock_output(tmp_path: Path, capsys: Any) -> None:
+    exit_code = main(["smoke-test", "--output-root", str(tmp_path)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out.splitlines()[0] == "OK"
+
+    run_dirs = sorted(
+        (path for path in tmp_path.iterdir() if path.is_dir()),
+        key=lambda path: (path.stat().st_mtime_ns, path.name),
+    )
+    assert len(run_dirs) == 1
+    run_dir = run_dirs[0]
+    assert not (run_dir / "diff.json").exists()
+
+    result = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
+    export_path = Path(result["export_markdown_path"])
+    assert export_path.exists()
+    assert export_path.name == "202604200000.md"
+
+    report = (run_dir / "report.md").read_text(encoding="utf-8")
+    export_markdown = export_path.read_text(encoding="utf-8")
+    assert report == export_markdown
+    assert "## System" in export_markdown
+    assert "## Network / WSL" in export_markdown
+    assert "## 差分" not in export_markdown

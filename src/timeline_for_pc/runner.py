@@ -118,6 +118,7 @@ def run_capture(
 
 def default_output_root() -> Path:
     candidates = (
+        Path("C:/Codex/workspaces/TimelineForPC"),
         Path("/mnt/c/Codex/workspaces/TimelineForPC"),
         Path.home() / "Codex" / "workspaces" / "TimelineForPC",
         Path.cwd() / "TimelineForPC-runs",
