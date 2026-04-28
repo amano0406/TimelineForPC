@@ -161,8 +161,8 @@ def test_doctor_reports_ok_when_required_tools_exist(tmp_path: Path) -> None:
 
     assert result.ok
     assert lines[0] == "OK"
-    assert any("[OK] PowerShell" in line for line in lines)
-    assert any("[OK] nvidia-smi" in line for line in lines)
+    assert any("[OK][required] PowerShell" in line for line in lines)
+    assert any("[OK][optional] nvidia-smi" in line for line in lines)
 
 
 def test_doctor_reports_ng_when_required_tools_are_missing(tmp_path: Path) -> None:
@@ -176,8 +176,9 @@ def test_doctor_reports_ng_when_required_tools_are_missing(tmp_path: Path) -> No
 
     assert not result.ok
     assert lines[0] == "NG"
-    assert any("[NG] Python" in line for line in lines)
-    assert any("[NG] PowerShell" in line for line in lines)
+    assert any("[NG][required] Python" in line for line in lines)
+    assert any("[NG][required] PowerShell" in line for line in lines)
+    assert any("[WARN][optional] nvidia-smi" in line for line in lines)
 
 
 def test_settings_init_creates_settings_json_without_overwriting(tmp_path: Path) -> None:

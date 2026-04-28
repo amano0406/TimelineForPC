@@ -50,55 +50,115 @@ Current snapshot coverage:
 - audio devices and hypervisor presence
 - installed apps from standard uninstall registry paths
 
+## Environment Requirements
+
+This product is a Windows host-inspection CLI. The standard entry point is
+PowerShell on the Windows host. WSL can still be used as a backdoor for
+development or emergency operation, but it is not the primary user path.
+
+It intentionally runs directly on the Windows host instead of Docker, because
+the main job is to read the actual PC state.
+
+Required for normal live capture:
+
+| Item | Reason |
+| --- | --- |
+| Windows host | The product captures Windows PC state. |
+| Python 3.11+ | Runs the CLI. |
+| PowerShell | Runs the local Windows collection script. |
+| CIM / WMI | Reads OS, CPU, RAM, BIOS, GPU, disk, audio, and system details. |
+| Writable output root | Stores run folders and `export/YYYYMMDDHHMM.md`. |
+
+Optional:
+
+| Item | Reason if available |
+| --- | --- |
+| `cmd.exe` | Helps run Windows command-line tools from the collector. |
+| `nvidia-smi` | Adds NVIDIA runtime details such as VRAM, temperature, power, VBIOS, and PCIe link. |
+| `wsl.exe` | Adds WSL distribution, Linux release, and WSL kernel details. WSL is also a non-primary backdoor entry point. |
+| `settings.json` | Stores local defaults for output root, redaction profile, and mock profile. |
+| `pytest` | Runs the development test suite. Not needed for normal capture. |
+
+Not required:
+
+| Item | Reason |
+| --- | --- |
+| Docker Desktop | Docker would see a container, not the full Windows host. |
+| npm / Node.js | The product has no JavaScript runtime dependency. |
+| Web UI / browser | The product is CLI-only. |
+| External API keys | The product does not call cloud APIs. |
+| Network access | Capture uses local machine information. |
+
 ## Usage
 
-Create one snapshot:
+Windows PowerShell is the front door. Run commands from `C:\apps\TimelineForPC`.
 
-```bash
-python -m timeline_for_pc capture
+Check this PC before capture:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 doctor
+```
+
+Create one live Windows snapshot:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 capture
 ```
 
 Write to a custom output root:
 
-```bash
-python -m timeline_for_pc capture --output-root /mnt/c/Codex/workspaces/TimelineForPC
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 capture --output-root C:\Codex\workspaces\TimelineForPC
 ```
 
 Choose a redaction profile for handoff-facing artifacts:
 
-```bash
-python -m timeline_for_pc capture --redaction-profile llm_safe
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 capture --redaction-profile llm_safe
 ```
 
 Run deterministic mock captures:
 
-```bash
-python -m timeline_for_pc capture --mock --mock-profile baseline
-python -m timeline_for_pc capture --mock --mock-profile upgraded
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 capture --mock --mock-profile baseline
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 capture --mock --mock-profile upgraded
 ```
 
 Run a quick output-contract check:
 
-```bash
-timeline-for-pc smoke-test
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 smoke-test
 ```
 
 Run the same check with live Windows collection:
 
-```bash
-timeline-for-pc smoke-test --live
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 smoke-test --live
 ```
 
-Check whether this PC has the required local tools for live collection:
+Check whether this PC has the required and optional local tools for live collection:
 
-```bash
-timeline-for-pc doctor
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 doctor
 ```
 
 Create local persistent settings:
 
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 settings init
+```
+
+If the Python package is already installed, the console command still works:
+
+```powershell
+timeline-for-pc doctor
+```
+
+WSL backdoor usage:
+
 ```bash
-timeline-for-pc settings init
+cd /mnt/c/apps/TimelineForPC
+PYTHONPATH=src python -m timeline_for_pc doctor
 ```
 
 ## Output Shape
@@ -133,8 +193,8 @@ Persistent local settings live at the product root:
 
 Initialize local settings:
 
-```bash
-timeline-for-pc settings init
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 settings init
 ```
 
 `settings init` creates `settings.json` only when it does not already exist. It
@@ -200,6 +260,6 @@ The first line is the machine-readable result:
 - `OK` means required checks passed.
 - `NG` means at least one required check failed.
 
-Optional checks such as `nvidia-smi` and `wsl.exe` may show `WARN`. A warning
-means that the main report can still be created, but that optional detail will
-be skipped.
+Each detail line includes `[required]` or `[optional]`. Optional checks such as
+`nvidia-smi` and `wsl.exe` may show `WARN`. A warning means that the main report
+can still be created, but that optional detail will be skipped.
