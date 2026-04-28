@@ -87,6 +87,12 @@ Run the same check with live Windows collection:
 timeline-for-pc smoke-test --live
 ```
 
+Check whether this PC has the required local tools for live collection:
+
+```bash
+timeline-for-pc doctor
+```
+
 ## Output Shape
 
 `report.md` is the main human-readable record inside the run directory.
@@ -150,3 +156,18 @@ The first line is the machine-readable result:
 
 By default, `smoke-test` uses deterministic mock data so it is safe and stable.
 Use `--live` when you want to verify the real Windows collection path.
+
+## Doctor
+
+`doctor` is the preflight check for live collection. It does not collect or
+export PC information. It only checks whether the local command-line tools and
+output directory needed by `capture` are available.
+
+The first line is the machine-readable result:
+
+- `OK` means required checks passed.
+- `NG` means at least one required check failed.
+
+Optional checks such as `nvidia-smi` and `wsl.exe` may show `WARN`. A warning
+means that the main report can still be created, but that optional detail will
+be skipped.

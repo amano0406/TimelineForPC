@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from timeline_for_pc.cli import main
+from timeline_for_pc.doctor import format_doctor_result
+from timeline_for_pc.doctor import run_doctor
 
 
 def test_mock_capture_creates_expected_files(tmp_path: Path) -> None:
@@ -113,3 +115,44 @@ def test_smoke_test_validates_mock_output(tmp_path: Path, capsys: Any) -> None:
     assert "## System" in export_markdown
     assert "## Network / WSL" in export_markdown
     assert "## 差分" not in export_markdown
+
+
+def test_doctor_reports_ok_when_required_tools_exist(tmp_path: Path) -> None:
+    def resolve_tool(name: str) -> str | None:
+        tools = {
+            "powershell.exe": "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+            "cmd.exe": "C:/Windows/System32/cmd.exe",
+            "wsl.exe": "C:/Windows/System32/wsl.exe",
+        }
+        return tools.get(name)
+
+    def command_succeeds(args: list[str]) -> bool:
+        return args[-1] == "nvidia-smi"
+
+    result = run_doctor(
+        output_root=tmp_path / "TimelineForPC",
+        tool_resolver=resolve_tool,
+        command_checker=command_succeeds,
+        python_version=(3, 11, 9),
+    )
+    lines = format_doctor_result(result)
+
+    assert result.ok
+    assert lines[0] == "OK"
+    assert any("[OK] PowerShell" in line for line in lines)
+    assert any("[OK] nvidia-smi" in line for line in lines)
+
+
+def test_doctor_reports_ng_when_required_tools_are_missing(tmp_path: Path) -> None:
+    result = run_doctor(
+        output_root=tmp_path / "TimelineForPC",
+        tool_resolver=lambda _name: None,
+        command_checker=lambda _args: False,
+        python_version=(3, 10, 0),
+    )
+    lines = format_doctor_result(result)
+
+    assert not result.ok
+    assert lines[0] == "NG"
+    assert any("[NG] Python" in line for line in lines)
+    assert any("[NG] PowerShell" in line for line in lines)

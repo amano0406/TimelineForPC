@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from timeline_for_pc.doctor import format_doctor_result
+from timeline_for_pc.doctor import run_doctor
 from timeline_for_pc.redaction import REDACTION_PROFILES
 from timeline_for_pc.runner import default_output_root
 from timeline_for_pc.runner import run_capture
@@ -35,6 +37,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"export: {result.export_path}")
         for issue in result.issues:
             print(f"- {issue}")
+        return 0 if result.ok else 1
+
+    if args.command == "doctor":
+        result = run_doctor(output_root=args.output_root)
+        for line in format_doctor_result(result):
+            print(line)
         return 0 if result.ok else 1
 
     parser.error("A command is required.")
@@ -90,5 +98,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default="llm_safe",
         choices=REDACTION_PROFILES,
         help="How much redaction to apply to handoff-facing artifacts.",
+    )
+
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Check whether this PC can run live collection.",
+    )
+    doctor_parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=default_output_root(),
+        help="Directory that normal capture runs will write under.",
     )
     return parser
