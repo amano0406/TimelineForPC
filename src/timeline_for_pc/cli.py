@@ -65,6 +65,19 @@ def main(argv: list[str] | None = None) -> int:
         print(run_dir)
         return 0
 
+    if args.command == "items":
+        if args.items_command == "refresh":
+            run_dir = run_capture(
+                output_root=args.output_root or settings.output_root,
+                mock=args.mock,
+                mock_profile=mock_profile,
+                redaction_profile=redaction_profile,
+            )
+            print(run_dir)
+            return 0
+        parser.error("An items subcommand is required.")
+        return 2
+
     if args.command == "smoke-test":
         output_root = args.output_root or (settings.output_root / "_smoke")
         result = run_smoke_test(
@@ -95,29 +108,18 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     capture_parser = subparsers.add_parser("capture", help="Collect one machine snapshot and write a run directory.")
-    capture_parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=None,
-        help="Directory that will contain TimelineForPC run folders.",
+    _add_capture_options(capture_parser)
+
+    items_parser = subparsers.add_parser(
+        "items",
+        help="Timeline-compatible item operations.",
     )
-    capture_parser.add_argument(
-        "--mock",
-        action="store_true",
-        help="Use deterministic mock data instead of live Windows collection.",
+    items_subparsers = items_parser.add_subparsers(dest="items_command")
+    items_refresh_parser = items_subparsers.add_parser(
+        "refresh",
+        help="Collect one PC snapshot and append one timeline event.",
     )
-    capture_parser.add_argument(
-        "--mock-profile",
-        default=None,
-        choices=MOCK_PROFILES,
-        help="Mock data profile to use when --mock is enabled.",
-    )
-    capture_parser.add_argument(
-        "--redaction-profile",
-        default=None,
-        choices=REDACTION_PROFILES,
-        help="How much redaction to apply to handoff-facing artifacts.",
-    )
+    _add_capture_options(items_refresh_parser)
 
     smoke_parser = subparsers.add_parser(
         "smoke-test",
@@ -162,6 +164,32 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Create settings.json from settings.example.json if it does not exist.",
     )
     return parser
+
+
+def _add_capture_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=None,
+        help="Directory that will contain TimelineForPC run folders.",
+    )
+    parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Use deterministic mock data instead of live Windows collection.",
+    )
+    parser.add_argument(
+        "--mock-profile",
+        default=None,
+        choices=MOCK_PROFILES,
+        help="Mock data profile to use when --mock is enabled.",
+    )
+    parser.add_argument(
+        "--redaction-profile",
+        default=None,
+        choices=REDACTION_PROFILES,
+        help="How much redaction to apply to handoff-facing artifacts.",
+    )
 
 
 def _require_choice(name: str, value: str, choices: tuple[str, ...]) -> str:

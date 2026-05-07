@@ -27,10 +27,7 @@ def test_mock_capture_creates_expected_files(tmp_path: Path) -> None:
 
     assert exit_code == 0
 
-    run_dirs = sorted(
-        (path for path in tmp_path.iterdir() if path.is_dir()),
-        key=lambda path: (path.stat().st_mtime_ns, path.name),
-    )
+    run_dirs = _run_dirs(tmp_path)
     assert len(run_dirs) == 1
     run_dir = run_dirs[0]
 
@@ -86,10 +83,7 @@ def test_second_mock_capture_keeps_same_minimal_output_shape(tmp_path: Path) -> 
     assert main(["capture", "--mock", "--mock-profile", "baseline", "--output-root", str(tmp_path)]) == 0
     assert main(["capture", "--mock", "--mock-profile", "upgraded", "--output-root", str(tmp_path)]) == 0
 
-    run_dirs = sorted(
-        (path for path in tmp_path.iterdir() if path.is_dir()),
-        key=lambda path: (path.stat().st_mtime_ns, path.name),
-    )
+    run_dirs = _run_dirs(tmp_path)
     second_run = run_dirs[-1]
 
     assert not (second_run / "diff.json").exists()
@@ -104,6 +98,8 @@ def test_second_mock_capture_keeps_same_minimal_output_shape(tmp_path: Path) -> 
     assert "Key installed apps:" in report
 
     result = json.loads((second_run / "result.json").read_text(encoding="utf-8"))
+    assert result["timeline_artifacts"]["update_status"] == "changed"
+    assert Path(result["timeline_artifacts"]["timeline_path"]).exists()
     assert result["export_markdown_path"].endswith("202605010000.md")
     assert "diff_path" not in result
     assert "previous_snapshot_path" not in result
@@ -116,10 +112,7 @@ def test_smoke_test_validates_mock_output(tmp_path: Path, capsys: Any) -> None:
     assert exit_code == 0
     assert captured.out.splitlines()[0] == "OK"
 
-    run_dirs = sorted(
-        (path for path in tmp_path.iterdir() if path.is_dir()),
-        key=lambda path: (path.stat().st_mtime_ns, path.name),
-    )
+    run_dirs = _run_dirs(tmp_path)
     assert len(run_dirs) == 1
     run_dir = run_dirs[0]
     assert not (run_dir / "diff.json").exists()
@@ -137,6 +130,52 @@ def test_smoke_test_validates_mock_output(tmp_path: Path, capsys: Any) -> None:
     assert "## Audio / Virtualization" in export_markdown
     assert "## Installed Apps" in export_markdown
     assert "## 差分" not in export_markdown
+
+
+def test_items_refresh_is_capture_alias_for_timeline_callers(tmp_path: Path) -> None:
+    exit_code = main(
+        [
+            "items",
+            "refresh",
+            "--mock",
+            "--mock-profile",
+            "baseline",
+            "--output-root",
+            str(tmp_path),
+        ]
+    )
+
+    assert exit_code == 0
+    run_dirs = _run_dirs(tmp_path)
+    assert len(run_dirs) == 1
+    result = json.loads((run_dirs[0] / "result.json").read_text(encoding="utf-8"))
+    assert result["timeline_artifacts"]["update_status"] == "first_seen"
+    assert (tmp_path / "events.jsonl").exists()
+
+
+def test_timeline_artifacts_append_first_seen_unchanged_and_changed_events(tmp_path: Path) -> None:
+    assert main(["capture", "--mock", "--mock-profile", "baseline", "--output-root", str(tmp_path)]) == 0
+    assert main(["capture", "--mock", "--mock-profile", "baseline", "--output-root", str(tmp_path)]) == 0
+    assert main(["capture", "--mock", "--mock-profile", "upgraded", "--output-root", str(tmp_path)]) == 0
+
+    item_dirs = sorted((tmp_path / "items").iterdir())
+    assert len(item_dirs) == 1
+    item_dir = item_dirs[0]
+
+    timeline = json.loads((item_dir / "timeline.json").read_text(encoding="utf-8"))
+    convert_info = json.loads((item_dir / "convert_info.json").read_text(encoding="utf-8"))
+    events = [json.loads(line) for line in (tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+    items = [json.loads(line) for line in (tmp_path / "items.jsonl").read_text(encoding="utf-8").splitlines()]
+    root_manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+
+    assert [event["update_status"] for event in timeline["events"]] == ["first_seen", "unchanged", "changed"]
+    assert [event["update_status"] for event in events] == ["first_seen", "unchanged", "changed"]
+    assert convert_info["update_status"] == "changed"
+    assert convert_info["fingerprint_scope"] == "material_pc_configuration"
+    assert "details.gpu_runtime" in convert_info["fingerprint_ignored_fields"]
+    assert items[0]["latest_update_status"] == "changed"
+    assert root_manifest["event_count"] == 3
+    assert not any(path.name == "diff.json" for path in tmp_path.rglob("*"))
 
 
 def test_doctor_reports_ok_when_required_tools_exist(tmp_path: Path) -> None:
@@ -163,6 +202,19 @@ def test_doctor_reports_ok_when_required_tools_exist(tmp_path: Path) -> None:
     assert lines[0] == "OK"
     assert any("[OK][required] PowerShell" in line for line in lines)
     assert any("[OK][optional] nvidia-smi" in line for line in lines)
+
+
+def test_doctor_accepts_output_root_that_capture_can_create(tmp_path: Path) -> None:
+    result = run_doctor(
+        output_root=tmp_path / "TimelineData" / "pc",
+        tool_resolver=lambda name: f"/bin/{name}" if name in {"powershell.exe", "cmd.exe", "wsl.exe"} else None,
+        command_checker=lambda _args: False,
+        python_version=(3, 11, 9),
+    )
+    lines = format_doctor_result(result)
+
+    assert result.ok
+    assert any("[OK][required] Output root" in line for line in lines)
 
 
 def test_doctor_reports_ng_when_required_tools_are_missing(tmp_path: Path) -> None:
@@ -245,3 +297,10 @@ def test_settings_init_cli_reports_result(tmp_path: Path, capsys: Any, monkeypat
         f"settings_path: {tmp_path / 'settings.json'}",
         "created: true",
     ]
+
+
+def _run_dirs(root: Path) -> list[Path]:
+    return sorted(
+        (path for path in root.iterdir() if path.is_dir() and path.name.startswith("run-")),
+        key=lambda path: (path.stat().st_mtime_ns, path.name),
+    )

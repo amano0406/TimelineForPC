@@ -1,6 +1,6 @@
 # TimelineForPC
 
-`TimelineForPC` is a local-first CLI for capturing the current state of a Windows PC and writing one readable markdown report.
+`TimelineForPC` is a local-first CLI for capturing the current state of a Windows PC, writing one readable markdown report, and appending a lightweight timeline event for each capture.
 
 The first MVP stays intentionally small:
 
@@ -22,14 +22,21 @@ Each capture writes one run directory with:
 - `report.md`
 - `export/YYYYMMDDHHMM.md`
 
+The output root also maintains timeline-oriented index files:
+
+- `items/<pc-id>/timeline.json`
+- `items/<pc-id>/convert_info.json`
+- `items.jsonl`
+- `events.jsonl`
+- `manifest.json`
+
+Every capture appends one timeline event. If the material PC configuration did
+not change, the event is still saved with `update_status: "unchanged"`.
+
 The default output root is:
 
-- Windows: `C:\Codex\workspaces\TimelineForPC`
-- WSL: `/mnt/c/Codex/workspaces/TimelineForPC`
-
-This product currently preserves that existing root instead of the shared
-Timeline baseline of `data/output/runs/timeline-for-pc/`. Moving the default
-root would be an output contract change and needs an explicit decision.
+- Windows: `C:\TimelineData\pc`
+- WSL: `/mnt/c/TimelineData/pc`
 
 ## What It Captures
 
@@ -58,6 +65,10 @@ development or emergency operation, but it is not the primary user path.
 
 It intentionally runs directly on the Windows host instead of Docker, because
 the main job is to read the actual PC state.
+
+It does not run as an always-on worker. PC configuration changes are infrequent,
+so the normal model is manual or scheduled CLI execution. If periodic capture is
+needed later, Windows Task Scheduler is the preferred approach.
 
 Required for normal live capture:
 
@@ -105,10 +116,16 @@ Create one live Windows snapshot:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 capture
 ```
 
+Use the Timeline-compatible command name for the same operation:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 items refresh
+```
+
 Write to a custom output root:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 capture --output-root C:\Codex\workspaces\TimelineForPC
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 capture --output-root C:\TimelineData\pc-test
 ```
 
 Choose a redaction profile for handoff-facing artifacts:
@@ -154,6 +171,12 @@ If the Python package is already installed, the console command still works:
 timeline-for-pc doctor
 ```
 
+`cli.ps1` is kept as a thin compatibility wrapper for Timeline-style callers:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\cli.ps1 items refresh
+```
+
 WSL backdoor usage:
 
 ```bash
@@ -173,6 +196,19 @@ PYTHONPATH=src python -m timeline_for_pc doctor
 
 It keeps the report as one markdown file instead of splitting it into timeline / handoff / ZIP artifacts.
 The product responsibility is limited to exporting the current machine state.
+
+The timeline files are internal product indexes. They make repeated captures
+usable by a parent Timeline product without changing the final markdown export:
+
+- `timeline.json` is the event history for this PC item.
+- `convert_info.json` stores the latest capture status and fingerprint metadata.
+- `events.jsonl` appends one event per capture, including `unchanged` captures.
+- `items.jsonl` points to the latest known PC item.
+
+The change check uses a material configuration fingerprint. Runtime-only values
+such as capture time, free disk space, GPU temperature, used VRAM, and currently
+running WSL distributions are ignored so normal daily activity does not create
+false configuration changes.
 
 `snapshot_redacted.json` and `export/YYYYMMDDHHMM.md` use the selected redaction profile.
 

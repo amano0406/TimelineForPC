@@ -128,6 +128,7 @@ def validate_run_dir(
             issues.append("result.json still contains previous_snapshot_path.")
         if export_path is not None and Path(str(result.get("export_markdown_path"))) != export_path:
             issues.append("result.json export_markdown_path does not match the export file.")
+        _validate_timeline_artifacts(result=result, issues=issues)
 
     if isinstance(manifest, dict):
         files = manifest.get("files")
@@ -163,6 +164,28 @@ def _validate_markdown(*, run_dir: Path, export_path: Path | None, issues: list[
     for snippet in FORBIDDEN_MARKDOWN_SNIPPETS:
         if snippet in report_markdown:
             issues.append(f"Markdown still contains forbidden text: {snippet}")
+
+
+def _validate_timeline_artifacts(*, result: dict[str, Any], issues: list[str]) -> None:
+    artifacts = result.get("timeline_artifacts")
+    if not isinstance(artifacts, dict):
+        issues.append("result.json is missing timeline_artifacts.")
+        return
+
+    status = artifacts.get("update_status")
+    if status not in {"first_seen", "changed", "unchanged"}:
+        issues.append(f"Unexpected timeline update_status: {status}")
+
+    for key in (
+        "timeline_path",
+        "convert_info_path",
+        "items_index_path",
+        "events_index_path",
+        "root_manifest_path",
+    ):
+        raw_path = artifacts.get(key)
+        if not raw_path or not Path(str(raw_path)).exists():
+            issues.append(f"Timeline artifact does not exist: {key}")
 
 
 def _read_json(path: Path, issues: list[str]) -> dict[str, Any] | None:

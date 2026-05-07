@@ -86,7 +86,7 @@ def _check_output_root(output_root: Path) -> DoctorCheck:
     if output_root.exists() and not output_root.is_dir():
         return DoctorCheck("Output root", "required", "NG", f"Exists but is not a directory: {output_root}")
 
-    writable_target = output_root if output_root.exists() else output_root.parent
+    writable_target = output_root if output_root.exists() else _nearest_existing_parent(output_root)
     if not writable_target.exists():
         return DoctorCheck("Output root", "required", "NG", f"Parent directory does not exist: {writable_target}")
     if not writable_target.is_dir():
@@ -94,6 +94,13 @@ def _check_output_root(output_root: Path) -> DoctorCheck:
     if not os.access(writable_target, os.W_OK):
         return DoctorCheck("Output root", "required", "NG", f"Directory is not writable: {writable_target}")
     return DoctorCheck("Output root", "required", "OK", f"Writable target is available: {writable_target}")
+
+
+def _nearest_existing_parent(path: Path) -> Path:
+    for parent in path.parents:
+        if parent.exists():
+            return parent
+    return path.parent
 
 
 def _check_cmd(tool_resolver: ToolResolver) -> DoctorCheck:

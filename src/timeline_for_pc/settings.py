@@ -108,9 +108,7 @@ def _normalize_path(value: str) -> Path:
     if os.name != "nt" and match:
         drive = match.group(1).lower()
         rest = match.group(2).replace("\\", "/")
-        wsl_path = Path("/mnt") / drive / rest
-        if wsl_path.parent.exists():
-            return wsl_path
+        return Path("/mnt") / drive / rest
     return Path(value)
 
 

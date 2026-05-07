@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "output_root": "C:/Codex/workspaces/TimelineForPC",
+  "output_root": "C:/TimelineData/pc",
   "redaction_profile": "llm_safe",
   "mock_profile": "baseline"
 }

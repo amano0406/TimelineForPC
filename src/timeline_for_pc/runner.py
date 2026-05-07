@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import secrets
 from datetime import UTC
 from datetime import datetime
@@ -11,6 +12,7 @@ from timeline_for_pc.bundle import write_export_report
 from timeline_for_pc.collector import collect_snapshot
 from timeline_for_pc.redaction import redact_snapshot
 from timeline_for_pc.render import render_report
+from timeline_for_pc.timeline_store import write_timeline_artifacts
 
 
 def run_capture(
@@ -65,6 +67,21 @@ def run_capture(
         report_markdown=report_markdown,
     )
 
+    completed_at_utc = _utc_now()
+    timeline_artifacts = write_timeline_artifacts(
+        output_root=output_root,
+        run_dir=run_dir,
+        run_id=run_id,
+        started_at_utc=started_at_utc,
+        completed_at_utc=completed_at_utc,
+        snapshot=current_snapshot,
+        snapshot_redacted=redacted_snapshot,
+        capture_mode="mock" if mock else "windows",
+        redaction_profile=redaction_profile,
+        report_path=run_dir / "report.md",
+        export_report_path=export_report_path,
+    )
+
     _write_json(
         run_dir / "manifest.json",
         {
@@ -81,10 +98,10 @@ def run_capture(
                 str(export_report_path.relative_to(run_dir)),
             ],
             "redaction_profile": redaction_profile,
+            "timeline_artifacts": _timeline_artifacts_payload(timeline_artifacts),
         },
     )
 
-    completed_at_utc = _utc_now()
     _write_json(
         run_dir / "result.json",
         {
@@ -96,6 +113,7 @@ def run_capture(
             "report_path": str(run_dir / "report.md"),
             "snapshot_redacted_path": str(run_dir / "snapshot_redacted.json"),
             "export_markdown_path": str(export_report_path),
+            "timeline_artifacts": _timeline_artifacts_payload(timeline_artifacts),
             "completed_at_utc": completed_at_utc,
         },
     )
@@ -117,9 +135,12 @@ def run_capture(
 
 
 def default_output_root() -> Path:
+    if os.name == "nt":
+        return Path("C:/TimelineData/pc")
+    if Path("/mnt/c").exists():
+        return Path("/mnt/c/TimelineData/pc")
+
     candidates = (
-        Path("C:/Codex/workspaces/TimelineForPC"),
-        Path("/mnt/c/Codex/workspaces/TimelineForPC"),
         Path.home() / "Codex" / "workspaces" / "TimelineForPC",
         Path.cwd() / "TimelineForPC-runs",
     )
@@ -140,3 +161,19 @@ def _utc_now() -> str:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _timeline_artifacts_payload(artifacts: Any) -> dict[str, Any]:
+    return {
+        "item_id": artifacts.item_id,
+        "update_status": artifacts.update_status,
+        "event_id": artifacts.event_id,
+        "snapshot_fingerprint": artifacts.snapshot_fingerprint,
+        "previous_snapshot_fingerprint": artifacts.previous_snapshot_fingerprint,
+        "item_dir": str(artifacts.item_dir),
+        "timeline_path": str(artifacts.timeline_path),
+        "convert_info_path": str(artifacts.convert_info_path),
+        "items_index_path": str(artifacts.items_index_path),
+        "events_index_path": str(artifacts.events_index_path),
+        "root_manifest_path": str(artifacts.root_manifest_path),
+    }
