@@ -120,6 +120,19 @@ Use the Timeline-compatible command name for the same operation:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 items refresh
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 items refresh --json
+```
+
+List captured PC timeline items:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 items list --json
+```
+
+Create a Timeline-compatible ZIP from captured PC timeline items:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 items download --output C:\TimelineData\pc\TimelineForPC-items.zip --overwrite --json
 ```
 
 Write to a custom output root:
@@ -157,12 +170,25 @@ Check whether this PC has the required and optional local tools for live collect
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 doctor
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 doctor --json
 ```
 
 Create local persistent settings:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 settings init
+```
+
+Show resolved local settings:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 settings status --json
+```
+
+Save local persistent settings:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\timeline-for-pc.ps1 settings save --output-root C:\TimelineData\pc --redaction-profile llm_safe --mock-profile baseline --json
 ```
 
 If the Python package is already installed, the console command still works:
@@ -210,6 +236,18 @@ such as capture time, free disk space, GPU temperature, used VRAM, and currently
 running WSL distributions are ignored so normal daily activity does not create
 false configuration changes.
 
+`items download` creates a ZIP that uses the same item artifact layout expected
+by Timeline-style product downloads:
+
+- `items/<pc-id>/timeline.json`
+- `items/<pc-id>/convert_info.json`
+- `items.jsonl`
+- `events.jsonl`
+- `manifest.json`
+
+The parent Timeline still needs a `pc` product registration and PC-specific
+normalization before this ZIP can appear in the combined Timeline store.
+
 `snapshot_redacted.json` and `export/YYYYMMDDHHMM.md` use the selected redaction profile.
 
 Current profiles:
@@ -243,6 +281,9 @@ Supported settings:
 - `mock_profile`: default mock profile when `--mock-profile` is omitted
 
 CLI arguments still take priority over `settings.json`.
+
+`settings save` updates only the local `settings.json`. It does not modify
+`settings.example.json`.
 
 ## Development
 
@@ -299,3 +340,8 @@ The first line is the machine-readable result:
 Each detail line includes `[required]` or `[optional]`. Optional checks such as
 `nvidia-smi` and `wsl.exe` may show `WARN`. A warning means that the main report
 can still be created, but that optional detail will be skipped.
+
+`doctor --json` also returns a `runtime` object. TimelineForPC reports
+`kind: "windows_host"` and `state: "recordable"` when required checks pass,
+because this product runs directly on the Windows host and does not have a
+Docker running/stopped state.

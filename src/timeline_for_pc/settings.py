@@ -31,6 +31,12 @@ class SettingsInitResult:
     created: bool
 
 
+@dataclass(frozen=True)
+class SettingsSaveResult:
+    path: Path
+    settings: AppSettings
+
+
 def product_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -84,6 +90,30 @@ def init_settings(*, root: Path | None = None) -> SettingsInitResult:
 
     target.write_text(content, encoding="utf-8")
     return SettingsInitResult(path=target, created=True)
+
+
+def save_settings(
+    *,
+    output_root: Path,
+    redaction_profile: str,
+    mock_profile: str,
+    root: Path | None = None,
+) -> SettingsSaveResult:
+    target = settings_path(root=root)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    settings = AppSettings(
+        output_root=output_root,
+        redaction_profile=redaction_profile,
+        mock_profile=mock_profile,
+    )
+    payload = {
+        "schema_version": 1,
+        "output_root": str(settings.output_root),
+        "redaction_profile": settings.redaction_profile,
+        "mock_profile": settings.mock_profile,
+    }
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return SettingsSaveResult(path=target, settings=settings)
 
 
 def _default_settings_json() -> str:

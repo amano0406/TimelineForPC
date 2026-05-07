@@ -61,6 +61,29 @@ def format_doctor_result(result: DoctorResult) -> list[str]:
     return lines
 
 
+def doctor_result_payload(result: DoctorResult, *, output_root: Path) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "ok": result.ok,
+        "output_root": str(output_root),
+        "runtime": {
+            "kind": "windows_host",
+            "display_name": "Host execution",
+            "state": "recordable" if result.ok else "not_ready",
+            "message": "Runs directly on the Windows host. Docker is not required.",
+        },
+        "checks": [
+            {
+                "name": check.name,
+                "requirement": check.requirement,
+                "status": check.status,
+                "message": check.message,
+            }
+            for check in result.checks
+        ],
+    }
+
+
 def _check_python(version: tuple[int, int, int]) -> DoctorCheck:
     label = ".".join(str(part) for part in version[:3])
     if version >= (3, 11, 0):
