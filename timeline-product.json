@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "productId": "pc",
+  "displayName": "TimelineForPC",
+  "productKind": "device-pc",
+  "description": "Captures current Windows PC state into markdown reports and timeline items.",
+  "commands": {
+    "cli": {
+      "type": "powershell",
+      "path": "cli.ps1"
+    },
+    "primary": {
+      "type": "powershell",
+      "path": "timeline-for-pc.ps1"
+    }
+  },
+  "settings": {
+    "file": "settings.json",
+    "exampleFile": "settings.example.json",
+    "supportsBasicDefaults": true,
+    "supportsProductOverrides": true
+  },
+  "capabilities": {
+    "fileList": false,
+    "itemList": true,
+    "itemRefresh": true,
+    "itemDownload": true,
+    "itemRemove": false,
+    "modelList": false,
+    "verbalization": false
+  },
+  "data": {
+    "sourcePathsFromSettings": [],
+    "generatedPathsFromSettings": [
+      "output_root",
+      "outputRoot",
+      "outputRoot.path",
+      "masterRoot.path"
+    ],
+    "deleteSourceData": false
+  },
+  "uninstall": {
+    "deleteAppDirectory": true,
+    "backupSettingsByDefault": true,
+    "deleteGeneratedDataOptional": true,
+    "deleteGeneratedDataByDefault": false,
+    "deleteSourceData": false
+  },
+  "runtime": {
+    "usesDocker": false,
+    "dockerManagedByTimeline": false
+  }
+}
