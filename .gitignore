@@ -5,6 +5,7 @@ __pycache__/
 htmlcov/
 build/
 dist/
+release/
 *.egg-info/
 
 # Local persistent settings. Keep settings.example.json tracked.
