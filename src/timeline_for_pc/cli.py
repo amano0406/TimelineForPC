@@ -33,54 +33,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.command == "settings":
-        if args.settings_command == "init":
-            result = init_settings()
-            print("OK")
-            print(f"settings_path: {result.path}")
-            print(f"created: {str(result.created).lower()}")
-            return 0
-        if args.settings_command == "status":
-            try:
-                settings = load_settings()
-            except SettingsError as exc:
-                print(_json_payload({"schema_version": 1, "ok": False, "error": {"message": str(exc)}}))
-                return 1
-            payload = _settings_payload(path=_settings_path(), settings=settings)
-            if args.json:
-                print(_json_payload(payload))
-            else:
-                print("OK")
-                print(f"output_root: {settings.output_root}")
-                print(f"redaction_profile: {settings.redaction_profile}")
-                print(f"mock_profile: {settings.mock_profile}")
-            return 0
-        if args.settings_command == "save":
-            try:
-                current = load_settings()
-                result = save_settings(
-                    output_root=args.output_root or current.output_root,
-                    redaction_profile=args.redaction_profile or current.redaction_profile,
-                    mock_profile=args.mock_profile or current.mock_profile,
-                )
-            except SettingsError as exc:
-                if args.json:
-                    print(_json_payload({"schema_version": 1, "ok": False, "error": {"message": str(exc)}}))
-                else:
-                    print("NG")
-                    print(f"- {exc}")
-                return 1
-            payload = _settings_payload(path=result.path, settings=result.settings)
-            if args.json:
-                print(_json_payload(payload))
-            else:
-                print("OK")
-                print(f"settings_path: {result.path}")
-                print(f"output_root: {result.settings.output_root}")
-                print(f"redaction_profile: {result.settings.redaction_profile}")
-                print(f"mock_profile: {result.settings.mock_profile}")
-            return 0
-        parser.error("A settings subcommand is required.")
-        return 2
+        return _handle_settings_command(args, parser)
 
     try:
         settings = load_settings()
@@ -94,81 +47,27 @@ def main(argv: list[str] | None = None) -> int:
             getattr(args, "mock_profile", None) or settings.mock_profile,
             MOCK_PROFILES,
         )
-    except SettingsError as exc:
-        if getattr(args, "json", False):
-            print(_json_payload({"schema_version": 1, "ok": False, "error": {"message": str(exc)}}))
-        else:
-            print("NG")
-            print(f"- {exc}")
-        return 1
-    except ValueError as exc:
-        if getattr(args, "json", False):
-            print(_json_payload({"schema_version": 1, "ok": False, "error": {"message": str(exc)}}))
-        else:
-            print("NG")
-            print(f"- {exc}")
+    except (SettingsError, ValueError) as exc:
+        _print_error(exc, json_output=getattr(args, "json", False))
         return 1
 
     if args.command == "capture":
-        run_dir = run_capture(
+        return _run_capture_command(
             output_root=args.output_root or settings.output_root,
             mock=args.mock,
             mock_profile=mock_profile,
             redaction_profile=redaction_profile,
+            json_output=getattr(args, "json", False),
         )
-        if getattr(args, "json", False):
-            print(_json_payload(_capture_payload(run_dir)))
-        else:
-            print(run_dir)
-        return 0
 
     if args.command == "items":
-        if args.items_command == "refresh":
-            run_dir = run_capture(
-                output_root=args.output_root or settings.output_root,
-                mock=args.mock,
-                mock_profile=mock_profile,
-                redaction_profile=redaction_profile,
-            )
-            if args.json:
-                print(_json_payload(_capture_payload(run_dir)))
-            else:
-                print(run_dir)
-            return 0
-        if args.items_command == "list":
-            payload = list_items(
-                output_root=args.output_root or settings.output_root,
-                page=args.page,
-                page_size=args.page_size,
-            )
-            if args.json:
-                print(_json_payload(payload))
-            else:
-                _print_items_text(payload)
-            return 0
-        if args.items_command == "download":
-            try:
-                result = download_items(
-                    output_root=args.output_root or settings.output_root,
-                    output_path=args.output,
-                    to_dir=args.to,
-                    overwrite=args.overwrite,
-                )
-            except OSError as exc:
-                if args.json:
-                    print(_json_payload({"schema_version": 1, "ok": False, "error": {"message": str(exc)}}))
-                else:
-                    print("NG")
-                    print(f"- {exc}")
-                return 1
-            payload = download_result_payload(result)
-            if args.json:
-                print(_json_payload(payload))
-            else:
-                print(result.archive_path)
-            return 0
-        parser.error("An items subcommand is required.")
-        return 2
+        return _handle_items_command(
+            args,
+            parser,
+            settings_output_root=settings.output_root,
+            mock_profile=mock_profile,
+            redaction_profile=redaction_profile,
+        )
 
     if args.command == "smoke-test":
         output_root = args.output_root or (settings.output_root / "_smoke")
@@ -199,6 +98,142 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
+def _handle_settings_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    if args.settings_command == "init":
+        result = init_settings()
+        print("OK")
+        print(f"settings_path: {result.path}")
+        print(f"created: {str(result.created).lower()}")
+        return 0
+
+    if args.settings_command == "status":
+        try:
+            settings = load_settings()
+        except SettingsError as exc:
+            print(_json_payload(_error_payload(exc)))
+            return 1
+        payload = _settings_payload(path=settings_path(), settings=settings)
+        if args.json:
+            print(_json_payload(payload))
+        else:
+            print("OK")
+            print(f"output_root: {settings.output_root}")
+            print(f"redaction_profile: {settings.redaction_profile}")
+            print(f"mock_profile: {settings.mock_profile}")
+        return 0
+
+    if args.settings_command == "save":
+        try:
+            current = load_settings()
+            result = save_settings(
+                output_root=args.output_root or current.output_root,
+                redaction_profile=args.redaction_profile or current.redaction_profile,
+                mock_profile=args.mock_profile or current.mock_profile,
+            )
+        except SettingsError as exc:
+            _print_error(exc, json_output=args.json)
+            return 1
+        payload = _settings_payload(path=result.path, settings=result.settings)
+        if args.json:
+            print(_json_payload(payload))
+        else:
+            print("OK")
+            print(f"settings_path: {result.path}")
+            print(f"output_root: {result.settings.output_root}")
+            print(f"redaction_profile: {result.settings.redaction_profile}")
+            print(f"mock_profile: {result.settings.mock_profile}")
+        return 0
+
+    parser.error("A settings subcommand is required.")
+    return 2
+
+
+def _handle_items_command(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+    *,
+    settings_output_root: Path,
+    mock_profile: str,
+    redaction_profile: str,
+) -> int:
+    output_root = args.output_root or settings_output_root
+
+    if args.items_command == "refresh":
+        return _run_capture_command(
+            output_root=output_root,
+            mock=args.mock,
+            mock_profile=mock_profile,
+            redaction_profile=redaction_profile,
+            json_output=args.json,
+        )
+
+    if args.items_command == "list":
+        payload = list_items(
+            output_root=output_root,
+            page=args.page,
+            page_size=args.page_size,
+        )
+        if args.json:
+            print(_json_payload(payload))
+        else:
+            _print_items_text(payload)
+        return 0
+
+    if args.items_command == "download":
+        try:
+            result = download_items(
+                output_root=output_root,
+                output_path=args.output,
+                to_dir=args.to,
+                overwrite=args.overwrite,
+            )
+        except OSError as exc:
+            _print_error(exc, json_output=args.json)
+            return 1
+        payload = download_result_payload(result)
+        if args.json:
+            print(_json_payload(payload))
+        else:
+            print(result.archive_path)
+        return 0
+
+    parser.error("An items subcommand is required.")
+    return 2
+
+
+def _run_capture_command(
+    *,
+    output_root: Path,
+    mock: bool,
+    mock_profile: str,
+    redaction_profile: str,
+    json_output: bool,
+) -> int:
+    run_dir = run_capture(
+        output_root=output_root,
+        mock=mock,
+        mock_profile=mock_profile,
+        redaction_profile=redaction_profile,
+    )
+    if json_output:
+        print(_json_payload(_capture_payload(run_dir)))
+    else:
+        print(run_dir)
+    return 0
+
+
+def _print_error(exc: Exception, *, json_output: bool) -> None:
+    if json_output:
+        print(_json_payload(_error_payload(exc)))
+    else:
+        print("NG")
+        print(f"- {exc}")
+
+
+def _error_payload(exc: Exception) -> dict[str, object]:
+    return {"schema_version": 1, "ok": False, "error": {"message": str(exc)}}
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="timeline-for-pc")
     subparsers = parser.add_subparsers(dest="command")
@@ -220,12 +255,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "list",
         help="List captured PC timeline items.",
     )
-    items_list_parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=None,
-        help="Directory that contains TimelineForPC item artifacts.",
-    )
+    _add_output_root_option(items_list_parser, help="Directory that contains TimelineForPC item artifacts.")
     items_list_parser.add_argument(
         "--page",
         type=int,
@@ -244,28 +274,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "download",
         help="Create a ZIP containing TimelineForPC item artifacts.",
     )
+    _add_output_root_option(items_download_parser, help="Directory that contains TimelineForPC item artifacts.")
+    items_download_parser.add_argument("--output", type=Path, default=None, help="ZIP file path to create.")
     items_download_parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=None,
-        help="Directory that contains TimelineForPC item artifacts.",
+        "--to", type=Path, default=None, help="Directory where a timestamped ZIP will be created."
     )
     items_download_parser.add_argument(
-        "--output",
-        type=Path,
-        default=None,
-        help="ZIP file path to create.",
-    )
-    items_download_parser.add_argument(
-        "--to",
-        type=Path,
-        default=None,
-        help="Directory where a timestamped ZIP will be created.",
-    )
-    items_download_parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Overwrite the target ZIP if it already exists.",
+        "--overwrite", action="store_true", help="Overwrite the target ZIP if it already exists."
     )
     _add_json_output_option(items_download_parser)
 
@@ -273,17 +288,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "smoke-test",
         help="Run a capture and verify the output contract.",
     )
-    smoke_parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=None,
-        help="Directory that will contain smoke-test run folders.",
-    )
-    smoke_parser.add_argument(
-        "--live",
-        action="store_true",
-        help="Use live Windows collection instead of deterministic mock data.",
-    )
+    _add_output_root_option(smoke_parser, help="Directory that will contain smoke-test run folders.")
+    smoke_parser.add_argument("--live", action="store_true", help="Use live Windows collection instead of deterministic mock data.")
     smoke_parser.add_argument(
         "--redaction-profile",
         default=None,
@@ -295,12 +301,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "doctor",
         help="Check whether this PC can run live collection.",
     )
-    doctor_parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=None,
-        help="Directory that normal capture runs will write under.",
-    )
+    _add_output_root_option(doctor_parser, help="Directory that normal capture runs will write under.")
     _add_json_output_option(doctor_parser)
 
     settings_parser = subparsers.add_parser(
@@ -316,21 +317,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "status",
         help="Show resolved local settings.",
     )
-    settings_status_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Print machine-readable JSON.",
-    )
+    _add_json_output_option(settings_status_parser)
     settings_save_parser = settings_subparsers.add_parser(
         "save",
         help="Save local persistent settings.",
     )
-    settings_save_parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=None,
-        help="Default output root for capture runs.",
-    )
+    _add_output_root_option(settings_save_parser, help="Default output root for capture runs.")
     settings_save_parser.add_argument(
         "--redaction-profile",
         default=None,
@@ -348,17 +340,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _add_capture_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=None,
-        help="Directory that will contain TimelineForPC run folders.",
-    )
-    parser.add_argument(
-        "--mock",
-        action="store_true",
-        help="Use deterministic mock data instead of live Windows collection.",
-    )
+    _add_output_root_option(parser, help="Directory that will contain TimelineForPC run folders.")
+    parser.add_argument("--mock", action="store_true", help="Use deterministic mock data instead of live Windows collection.")
     parser.add_argument(
         "--mock-profile",
         default=None,
@@ -388,6 +371,10 @@ def _add_json_output_option(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_output_root_option(parser: argparse.ArgumentParser, *, help: str) -> None:
+    parser.add_argument("--output-root", type=Path, default=None, help=help)
+
+
 def _json_payload(payload: dict[str, object]) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -401,10 +388,6 @@ def _settings_payload(*, path: Path, settings: Any) -> dict[str, object]:
         "redaction_profile": settings.redaction_profile,
         "mock_profile": settings.mock_profile,
     }
-
-
-def _settings_path() -> Path:
-    return settings_path()
 
 
 def _capture_payload(run_dir: Path) -> dict[str, object]:
